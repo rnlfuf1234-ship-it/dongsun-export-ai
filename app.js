@@ -2,7 +2,7 @@
 "use strict";
 
 /* ---------- 저장소 ---------- */
-const KEY="dsx2";
+const KEY="dsx3";
 let S=null;
 function defaultState(){
  return {
@@ -11,8 +11,8 @@ function defaultState(){
   dict: JSON.parse(JSON.stringify(SEED.dict)),
   regsExtra: [],
   drafts: [
-   { id:1, kind:"label", productId:1, ctr:"US", status:"check",
-     fields: aiLabelDraft(SEED.products[0],"US"),
+   { id:1, kind:"label", productId:4, ctr:"US", status:"check",
+     fields: aiLabelDraft(SEED.products[3],"US"),
      history:[{st:"draft",at:Date.now()-3600e3*5},{st:"check",at:Date.now()-3600e3*2}] }
   ],
   log: [ {t:"AI 초안 완성 — 미국 라벨(쌀 튀김누룽지)", at:Date.now()-3600e3*5, kind:"ai", to:"draft/1", read:false} ],
@@ -271,11 +271,33 @@ function viewDocs(){
 function viewProducts(){
  const v=h('<div></div>');
  v.appendChild(h('<div class="topbar"><div><h2 class="page">제품 정보</h2><p class="page-sub">규격서 '+S.products.length+'건 · 초안의 유일한 재료 — AI는 여기 적힌 값만 써요</p></div><div class="sp"></div><button class="btn primary" id="p-new">+ 새 제품 추가</button></div>'));
- S.products.forEach(p=>{
-  const c=h('<div class="card" style="margin-bottom:14px;display:flex;gap:14px;align-items:center;cursor:pointer"><img class="thumb" style="width:56px;height:56px;border-radius:14px;object-fit:cover" src="assets/hero-snack.png"><div class="grow"><b style="font-size:15px">'+esc(p.name)+'</b><div class="hint">'+esc(p.type)+' · '+p.weight+'g · 알레르겐 '+(p.allergens.length?esc(p.allergens.join(" · ")):"없음")+'</div></div><span class="pill st-ok">영문 규격 완료</span></div>');
-  c.onclick=()=>openProductForm(p);
-  v.appendChild(c);
- });
+ const srch=h('<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;padding:12px 16px"><span style="color:var(--text-dim)">🔍</span><input id="p-q" placeholder="제품명·SKU로 찾기" style="flex:1;border:0;background:transparent;font-size:13px;outline:none"></div>');
+ v.appendChild(srch);
+ const tabs=h('<div class="tabs"></div>');
+ v.appendChild(tabs);
+ const list=h('<div></div>');
+ v.appendChild(list);
+ let cur="전체", qs="";
+ const types=["전체",...new Set(S.products.map(p=>p.type))];
+ const paint=()=>{
+  tabs.innerHTML=""; list.innerHTML="";
+  types.forEach(t=>{
+   const n= t==="전체"? S.products.length : S.products.filter(p=>p.type===t).length;
+   const b=h('<button class="tab'+(cur===t?" on":"")+'">'+esc(t)+' '+n+'</button>');
+   b.onclick=()=>{cur=t;paint();};
+   tabs.appendChild(b);
+  });
+  const hits=S.products.filter(p=>(cur==="전체"||p.type===cur)&&(!qs||(p.name+" "+p.en+" "+(p.sku||"")).toLowerCase().includes(qs)));
+  if(hits.length===0) list.appendChild(h('<div class="card"><p class="hint">맞는 제품이 없어요</p></div>'));
+  hits.forEach(p=>{
+   const dr=S.drafts.filter(d=>d.productId===p.id).length;
+   const c=h('<div class="card" style="margin-bottom:12px;display:flex;gap:14px;align-items:center;cursor:pointer"><img class="thumb" style="width:56px;height:56px;border-radius:14px;object-fit:cover" src="assets/hero-snack.png"><div class="grow"><b style="font-size:15px">'+esc(p.name)+'</b><div class="hint">'+esc(p.sku||"")+' · HS '+esc(p.hs||"-")+' · '+esc(p.type)+' · '+p.weight+'g · FOB $'+(p.fob||"-")+' · 알레르겐 '+(p.allergens.length?esc(p.allergens.join("·")):"없음")+(dr?' · 자료 '+dr+'건':"")+'</div></div><span class="pill st-ok">영문 규격 완료</span></div>');
+   c.onclick=()=>openProductForm(p);
+   list.appendChild(c);
+  });
+ };
+ srch.querySelector("#p-q").addEventListener("input",e=>{ qs=e.target.value.trim().toLowerCase(); paint(); });
+ paint();
  v.querySelector("#p-new").onclick=()=>openProductForm(null);
  return v;
 }
@@ -285,8 +307,26 @@ function openProductForm(p){
   '<div class="field"><label>품목명(한글)</label><input id="pf-ko" value="'+(p?esc(p.name):"")+'"></div>'+
   '<div class="field" id="pf-en-f"><label>품목명(영문)</label><input id="pf-en" value="'+(p?esc(p.en):"")+'"><div class="err"></div></div>'+
   '<div class="field" id="pf-ing-f"><label>성분(사전에서 선택, 배합비 합계 100)</label><div id="pf-ings"></div><div style="display:flex;gap:8px;margin-top:6px"><select id="pf-sel" style="flex:1;background:var(--bg);border:0;border-radius:10px;padding:10px">'+dictOpts+'</select><input id="pf-pct" type="number" placeholder="%" style="width:80px;background:var(--bg);border:0;border-radius:10px;padding:10px"><button class="btn sub" id="pf-add">추가</button></div><div class="err"></div></div>'+
-  '<div class="field"><label>중량(g) — oz 자동 환산</label><input id="pf-w" type="number" value="'+(p?p.weight:60)+'"></div>'+
   '<div class="hint" id="pf-alg" style="margin-bottom:12px"></div>'+
+  '<div class="sec-title" style="font-size:13px;margin:4px 0 8px;color:var(--text-sub)">포장 · 물류 (수출 실무)</div>'+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px">'+
+  '<div class="field"><label>중량(g)</label><input id="pf-w" type="number" value="'+(p?p.weight:60)+'"></div>'+
+  '<div class="field"><label>유통기한(개월)</label><input id="pf-life" type="number" value="'+(p?p.life:12)+'"></div>'+
+  '<div class="field"><label>품목코드(SKU)</label><input id="pf-sku" value="'+(p?esc(p.sku||""):"DS-0"+(S.products.length+1>9?"":"0")+(S.products.length+1))+'"></div>'+
+  '<div class="field"><label>HS코드 (관세사 확인 필요)</label><input id="pf-hs" value="'+(p?esc(p.hs||""):"1904.10")+'"></div>'+
+  '<div class="field"><label>포장 형태</label><input id="pf-pack" value="'+(p?esc(p.pack||""):"봉지 60g")+'"></div>'+
+  '<div class="field"><label>카톤 입수(개)</label><input id="pf-pc" type="number" value="'+(p?(p.perCarton||20):20)+'"></div>'+
+  '<div class="field"><label>FOB 단가(USD)</label><input id="pf-fob" type="number" step="0.05" value="'+(p?(p.fob||""):"")+'"></div>'+
+  '<div class="field"><label>보관</label><select id="pf-keep"><option value="Keep in a cool, dry place"'+(p&&p.keep&&p.keep.indexOf("frozen")>-1?"":" selected")+'>실온</option><option value="Keep refrigerated at 0-10°C">냉장</option><option value="Keep frozen at -18°C or below"'+(p&&p.keep&&p.keep.indexOf("frozen")>-1?" selected":"")+'>냉동</option></select></div>'+
+  '</div>'+
+  '<div class="sec-title" style="font-size:13px;margin:4px 0 8px;color:var(--text-sub)">영양성분 (라벨 Nutrition Facts에 그대로 들어가요)</div>'+
+  '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:0 8px">'+
+  '<div class="field"><label>칼로리</label><input id="nf-cal" type="number" value="'+(p&&p.nf?p.nf.cal:280)+'"></div>'+
+  '<div class="field"><label>지방 g</label><input id="nf-fat" type="number" value="'+(p&&p.nf?parseInt(p.nf.rows[0][0].replace(/\D+/g,""))||10:10)+'"></div>'+
+  '<div class="field"><label>나트륨 mg</label><input id="nf-na" type="number" value="'+(p&&p.nf?parseInt(p.nf.rows[1][0].replace(/\D+/g,""))||180:180)+'"></div>'+
+  '<div class="field"><label>탄수 g</label><input id="nf-cb" type="number" value="'+(p&&p.nf?parseInt(p.nf.rows[2][0].replace(/\D+/g,""))||40:40)+'"></div>'+
+  '<div class="field"><label>단백 g</label><input id="nf-pr" type="number" value="'+(p&&p.nf?parseInt(p.nf.rows[3][0].replace(/\D+/g,""))||4:4)+'"></div>'+
+  '</div>'+
   '<div class="m-btns"><button class="btn sub" onclick="closeModal()">취소</button><button class="btn primary" id="pf-save">저장</button></div>');
  let ings = p? JSON.parse(JSON.stringify(p.ing)) : [];
  const paint=()=>{
@@ -312,9 +352,16 @@ function openProductForm(p){
   if(Math.abs(sum-100)>0.5){ ingF.classList.add("invalid"); ingF.querySelector(".err").textContent="배합비 합계가 100%가 아니에요 (지금 "+sum+"%)"; return; }
   const algs=[...new Set(ings.map(i=>{const d=S.dict.find(x=>x.ko===i.ko);return d&&d.allergen?i.ko:null;}).filter(Boolean))];
   const w=Number($("#pf-w").value)||60;
+  const fat=Number($("#nf-fat").value)||0, na=Number($("#nf-na").value)||0, cb=Number($("#nf-cb").value)||0, pr=Number($("#nf-pr").value)||0;
+  const nf={ cal:Number($("#nf-cal").value)||0, rows:[
+   ["Total Fat "+fat+"g", Math.round(fat/78*100)+"%"],
+   ["Sodium "+na+"mg", Math.round(na/2300*100)+"%"],
+   ["Total Carbohydrate "+cb+"g", Math.round(cb/275*100)+"%"],
+   ["Protein "+pr+"g",""] ]};
+  const extra={ sku:$("#pf-sku").value.trim(), hs:$("#pf-hs").value.trim(), pack:$("#pf-pack").value.trim(), perCarton:Number($("#pf-pc").value)||20, fob:Number($("#pf-fob").value)||null, life:Number($("#pf-life").value)||12, keep:$("#pf-keep").value, nf };
   const doIt=()=>{
-   if(p){ p.name=ko; p.en=en; p.ing=ings; p.weight=w; p.allergens=algs; }
-   else { S.products.push({id:Date.now(),name:ko,en,type:"과자",ing:ings,allergens:algs,weight:w,keep:"Keep in a cool, dry place",life:12,nf:{cal:280,rows:[["Total Fat 10g","13%"],["Sodium 180mg","8%"],["Total Carbohydrate 40g","15%"],["Protein 4g",""]]}}); }
+   if(p){ p.name=ko; p.en=en; p.ing=ings; p.weight=w; p.allergens=algs; Object.assign(p,extra); }
+   else { S.products.push(Object.assign({id:Date.now(),name:ko,en,type:"과자",ing:ings,allergens:algs,weight:w},extra)); }
    save(); closeModal(); toast("저장됐어요"); render();
   };
   if(p){
@@ -710,7 +757,7 @@ function viewReviewDetail(id){
  });
  const right=h('<div class="card" style="width:400px;flex-shrink:0"><div class="sec-title">검수 점검표</div></div>');
  const emptyField=d.fields.some(f=>!f.v);
- [[true,"필수 항목 "+d.fields.length+"개 구성 (S-12 기준)"],[true,"인용 조항이 최신 개정판"],[p.allergens.length>0,"알레르겐 Contains 문구 — "+(p.allergens.length?"명시됨":"해당 없음")],[true,"금지표현 없음"],[!emptyField, emptyField?"빈 칸 있음 — Best Before 확인 필요":"빈 칸 없음"]].forEach(c=>{
+ [[true,"필수 항목 "+d.fields.length+"개 구성 (S-12 기준)"],[true,"인용 조항이 최신 개정판"],[true,"알레르겐 — "+(p.allergens.length?"Contains 명시됨":"해당 없음(성분 기준)")],[true,"금지표현 없음"],[!emptyField, emptyField?"빈 칸 있음 — Best Before 확인 필요":"빈 칸 없음"]].forEach(c=>{
   right.appendChild(h('<div class="chk'+(c[0]?"":" warn")+'"><div class="dot">'+(c[0]?"✓":"!")+'</div><span>'+esc(c[1])+'</span></div>'));
  });
  right.appendChild(h('<div class="field" style="margin-top:12px"><label>반려하려면 사유를 골라 주세요 (반려 시 필수)</label><select id="rv-r"><option value="">— 사유 선택 —</option><option>근거 불일치</option><option>표기 형식</option><option>금지표현</option><option>기타</option></select></div>'));
@@ -741,7 +788,7 @@ function openReview(d){
  const checks=[
   [true,"필수 항목 "+d.fields.length+"개 구성 (S-12 기준)"],
   [true,"인용 조항이 최신 개정판"],
-  [p.allergens.length>0,"알레르겐 Contains 문구 — "+(p.allergens.length?"명시됨":"해당 없음")],
+  [true,"알레르겐 — "+(p.allergens.length?"Contains 명시됨":"해당 없음(성분 기준)")],
   [true,"금지표현 없음"],
   [!emptyField, emptyField?"빈 칸 있음 — Best Before 확인 필요":"빈 칸 없음"]
  ];
