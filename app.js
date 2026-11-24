@@ -98,11 +98,19 @@ function render(){
   main.appendChild(bar);
  }
  const seg=r.split("/");
- const views={ home:viewHome, products:viewProducts, kb:viewKB, create:viewCreate, review:viewReview, stats:viewStats, dict:viewDict, alerts:viewAlerts, draft:()=>viewDraft(seg[1]), send:()=>viewSend(seg[1]), preview:()=>viewPreview(seg[1]) };
+ const views={ home:viewHome, products:viewProducts, kb:viewKB, create:viewCreate, review:viewReview, stats:viewStats, dict:viewDict, alerts:viewAlerts, docs:viewDocs, draft:()=>viewDraft(seg[1]), send:()=>viewSend(seg[1]), preview:()=>viewPreview(seg[1]), rvw:()=>viewReviewDetail(seg[1]) };
  const v=(views[seg[0]]||viewHome)();
+ v.classList.add("fade-in");
  main.appendChild(v);
  if(role==="ceo"||role==="staff") app.appendChild(tabbar(seg[0]));
  window.scrollTo(0,0);
+ if((role==="ceo"||role==="staff") && !S.guideSeen){ showGuide(); }
+}
+function showGuide(){
+ S.guideSeen=true; save();
+ modal('<h3>처음이시죠? 3단계면 끝나요</h3><p class="m-body">이 도구는 수출 서류를 근거와 함께 만들어요</p>'+
+  [["ic-box","1. 제품 규격서","성분·중량을 사전에서 골라 한 번만 입력"],["ic-doc","2. AI 초안","라벨·상세페이지·답장을 근거(규정 원문)와 함께"],["ic-check","3. 확인 → 발송","원문 대조와 전문가 검수를 거친 것만 나가요"]].map(g=>'<div class="list-row"><img class="thumb" style="width:44px;height:44px;border-radius:12px" src="assets/'+g[0]+'.png"><div class="t"><b>'+g[1]+'</b><span>'+g[2]+'</span></div></div>').join("")+
+  '<div class="m-btns"><button class="btn vivid" onclick="closeModal()">시작하기</button></div>');
 }
 
 /* ---------- 공통 틀 ---------- */
@@ -134,7 +142,7 @@ function mobHead(){
 }
 function tabbar(r){
  const tb=h('<nav class="tabbar"></nav>');
- [["home","홈",I.home],["create","자료",I.doc],["alerts","알림",I.bell],["stats","성과",I.check]].forEach(it=>{
+ [["home","홈",I.home],["docs","자료",I.doc],["alerts","알림",I.bell],["stats","성과",I.check]].forEach(it=>{
   const b=h('<button class="'+(r===it[0]?"on":"")+'">'+it[2]+'<span>'+it[1]+'</span></button>');
   b.onclick=()=>go(it[0]); tb.appendChild(b);
  });
@@ -198,14 +206,56 @@ function viewHome(){
  const pf=perfCalc();
  v.appendChild(h('<div class="promo"><div class="inner"><b>이번 달 현지화 시간 <em>절반으로 ↓</em></b><p>도입 전 28시간 → 목표 14시간 · 아낀 시간은 바이어 발굴에 (수치 예시)</p></div></div>'));
  v.appendChild(h('<div class="stats"><div class="cell"><b>'+pf.minutes+'분</b><span>자동 실측 누적</span></div><div class="div"></div><div class="cell"><b>'+pf.inProg+'건</b><span>진행 자료</span></div><div class="div"></div><div class="cell"><b>'+S.perf.contracts+'만원</b><span>분기 계약(예시)</span></div><div class="div"></div><div class="cell"><b>2개국</b><span>미국·베트남</span></div></div>'));
- const list=h('<div class="card"><div class="sec-title">진행 중 자료</div></div>');
+ const list=h('<div class="card"><div class="sec-title" style="display:flex;align-items:center"><span class="grow">진행 중 자료</span><button class="btn-link" onclick="go(\'docs\')">전체 보기 →</button></div></div>');
  if(S.drafts.length===0) list.appendChild(h('<p class="hint">아직 없어요 — 자료 만들기에서 시작해요</p>'));
- S.drafts.slice().reverse().forEach(d2=>{
+ S.drafts.slice().reverse().slice(0,4).forEach(d2=>{
   const r=h('<div class="list-row click"><img class="thumb" src="'+draftThumb(d2)+'"><div class="t"><b>'+esc(draftName(d2))+(d2.recheck?' <span class="pill warn-tag">다시 확인 필요</span>':"")+'</b><span>'+(d2.ctr==="US"?"미국":d2.ctr==="VN"?"베트남":"")+' · '+ago(d2.history[d2.history.length-1].at)+'</span></div>'+pillOf(d2.status)+'</div>');
   r.onclick=()=>openDraft(d2);
   list.appendChild(r);
  });
  v.appendChild(list);
+ return v;
+}
+
+/* ---------- 상태 타임라인 ---------- */
+function timeline(d){
+ const flow = d.kind==="label" ? ["draft","check","review","ok","sent"] : ["draft","ok","sent"];
+ const names={draft:"초안",check:"근거확인",review:"검수",ok:"승인",sent:"발송"};
+ const idx=flow.indexOf(d.status==="rej"?"review":d.status);
+ const el=h('<div class="tl"></div>');
+ flow.forEach((st,i)=>{
+  const onCls = i<idx? "done" : i===idx? (d.status==="rej"?"rej":"on") : "";
+  el.appendChild(h('<div class="tl-s '+onCls+'"><i></i><span>'+names[st]+(st==="review"&&d.status==="rej"?" (반려)":"")+'</span></div>'));
+  if(i<flow.length-1) el.appendChild(h('<div class="tl-l'+(i<idx?" done":"")+'"></div>'));
+ });
+ return el;
+}
+
+/* ---------- 자료 전체 목록 ---------- */
+function viewDocs(){
+ const v=h('<div></div>');
+ v.appendChild(h('<div class="topbar"><div><h2 class="page">자료</h2><p class="page-sub">만든 자료 '+S.drafts.length+'건 — 눌러서 이어서 진행해요</p></div><div class="sp"></div><button class="btn primary" onclick="go(\'create\')">+ 새로 만들기</button></div>'));
+ const tabs=h('<div class="tabs"></div>');
+ const list=h('<div class="card"></div>');
+ let cur="all";
+ const paint=()=>{
+  tabs.innerHTML=""; list.innerHTML="";
+  const groups=[["all","전체 "+S.drafts.length],["prog","진행 중 "+S.drafts.filter(d=>d.status!=="sent").length],["sent","발송됨 "+S.drafts.filter(d=>d.status==="sent").length],["label","라벨"],["detail","상세페이지"],["reply","답장"]];
+  groups.forEach(g=>{
+   const b=h('<button class="tab'+(cur===g[0]?" on":"")+'">'+g[1]+'</button>');
+   b.onclick=()=>{cur=g[0];paint();};
+   tabs.appendChild(b);
+  });
+  const items=S.drafts.filter(d=> cur==="all" || (cur==="prog"&&d.status!=="sent") || (cur==="sent"&&d.status==="sent") || d.kind===cur).slice().reverse();
+  if(items.length===0) list.appendChild(h('<div style="text-align:center;padding:26px 0"><img src="assets/ic-doc.png" style="width:64px;height:64px;border-radius:18px;margin:0 auto 10px"><b style="display:block">여기엔 아직 없어요</b><span class="hint">자료 만들기에서 시작해요</span></div>'));
+  items.forEach(d2=>{
+   const r=h('<div class="list-row click"><img class="thumb" src="'+draftThumb(d2)+'"><div class="t"><b>'+esc(draftName(d2))+(d2.recheck?' <span class="pill warn-tag">다시 확인 필요</span>':"")+'</b><span>'+ago(d2.history[d2.history.length-1].at)+'</span></div>'+pillOf(d2.status)+'</div>');
+   r.onclick=()=>openDraft(d2);
+   list.appendChild(r);
+  });
+ };
+ paint();
+ v.appendChild(tabs); v.appendChild(list);
  return v;
 }
 
@@ -280,7 +330,9 @@ function viewKB(){
  const v2=h('<div class="row"></div>');
  const left=h('<div class="grow"></div>');
  const right=h('<div class="card" style="width:380px;flex-shrink:0"></div>');
- let cur="US";
+ let cur="US", qstr="";
+ const srch=h('<div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:10px;padding:12px 16px"><span style="color:var(--text-dim)">🔍</span><input id="kb-q" placeholder="예: 알레르겐, 101.9, 날짜" style="flex:1;border:0;background:transparent;font-size:13px;outline:none"></div>');
+ srch.querySelector("#kb-q").addEventListener("input",e=>{ qstr=e.target.value.trim().toLowerCase(); paint(); });
  const showDoc=(r)=>{
   const cited=S.drafts.filter(d=>d.kind!=="reply" && (d.fields||[]).some(f=>(f.regs||[]).includes(r.id)) && d.status!=="sent");
   right.innerHTML='<div class="sec-title">'+esc(r.title)+'</div><div class="ev"><div class="bar"></div><div><p>“'+esc(r.body)+'”</p><div class="src">'+esc(r.src)+' · 개정 '+esc(r.rev)+'</div></div></div>'+
@@ -305,7 +357,9 @@ function viewKB(){
    b.onclick=()=>{cur=t[0];paint();};
    tabs.appendChild(b);
   });
-  regs.filter(r=>cur==="ALL"||r.ctr===cur).forEach(r=>{
+  const hits=regs.filter(r=>(cur==="ALL"||r.ctr===cur) && (!qstr || (r.title+" "+r.body+" "+r.use).toLowerCase().includes(qstr)));
+  if(hits.length===0) left.appendChild(h('<div class="card"><p class="hint">"'+esc(qstr)+'"에 맞는 문서가 없어요 — 다른 말로 찾아보거나, 문서를 올려 주세요</p></div>'));
+  hits.forEach(r=>{
    const row=h('<div class="list-row click"><img class="thumb" style="width:40px;height:40px;border-radius:10px" src="assets/ic-book.png"><div class="t"><b>'+esc(r.title)+'</b><span>'+esc(r.src)+' · 개정 '+esc(r.rev)+' · '+esc(r.use)+'</span></div></div>');
    row.onclick=()=>showDoc(r);
    left.appendChild(row);
@@ -313,6 +367,7 @@ function viewKB(){
  };
  paint();
  right.innerHTML='<div class="sec-title">문서를 고르면 원문이 보여요</div><p class="hint">모든 문서에 출처·개정일이 붙어 있어요. 출처 없는 문서는 올릴 수 없어요.</p>';
+ v.appendChild(srch);
  v.appendChild(tabs);
  v2.appendChild(left); v2.appendChild(right);
  v.appendChild(v2);
@@ -344,7 +399,8 @@ function viewKB(){
 function viewCreate(){
  const v=h('<div></div>');
  v.appendChild(h('<div class="topbar"><div><h2 class="page">자료 만들기</h2><p class="page-sub">AI는 검색·초안까지 — 근거 없는 문장은 쓰지 않아요</p></div></div>'));
- const tabs=h('<div class="tabs"><button class="tab on" data-t="label">라벨 표기 초안</button><button class="tab" data-t="detail">영문 상세페이지</button><button class="tab" data-t="reply">바이어 답장</button></div>');
+ const inqAll=SEED.inquiries.concat(S.inqExtra||[]);
+ const tabs=h('<div class="tabs"><button class="tab on" data-t="label">라벨 표기 초안</button><button class="tab" data-t="detail">영문 상세페이지</button><button class="tab" data-t="reply">바이어 답장</button><button class="tab" data-t="inbox">받은 문의함 '+inqAll.length+'</button></div>');
  v.appendChild(tabs);
  const body=h('<div></div>'); v.appendChild(body);
  const opts=S.products.map(p=>'<option value="'+p.id+'">'+esc(p.name)+'</option>').join("");
@@ -384,12 +440,13 @@ function viewCreate(){
  const paintReply=()=>{
   body.innerHTML="";
   const c=h('<div class="row"><div class="card" style="width:380px;flex-shrink:0"><div class="sec-title">들어가는 것</div>\
-   <div class="field"><label>바이어 문의 (받은 내용 붙여넣기)</label><textarea id="r-q" rows="4" placeholder="예: 최소 주문 수량과 납기를 알려 주세요"></textarea></div>\
+   <div class="field"><label>바이어 문의 (받은 내용 붙여넣기)</label><textarea id="r-q" rows="4" placeholder="예: 최소 주문 수량과 납기를 알려 주세요">'+esc(S.pendInq||"")+'</textarea></div>\
    <p class="hint" style="margin-bottom:12px">바이어 연락처·회사 정보는 입력하지 않아요 (개인정보 원칙)</p>\
    <button class="btn ai block" id="r-go">✦ 답장 초안 만들기</button>\
    <div style="margin-top:14px"><div class="sec-title" style="font-size:13px">받은 문의 예시</div><div id="r-samples"></div></div></div>\
    <div class="card grow" id="r-out"><div class="sec-title">AI 초안</div><p class="hint">문의를 넣으면 유형을 분류하고(S-19) 문안틀로 초안을 만들어요. 금지표현은 자동으로 빠져요. 통관 질문은 AI가 답하지 않아요 — 직접 넣어 확인해 보세요.</p></div></div>');
-  SEED.inquiries.forEach(q=>{
+  if(S.pendInq){ S.pendInq=""; save(); }
+  SEED.inquiries.concat(S.inqExtra||[]).forEach(q=>{
    const s=h('<div class="list-row click"><div class="t"><b>'+esc(q.from)+'</b><span>'+esc(q.text)+'</span></div></div>');
    s.onclick=()=>{ c.querySelector("#r-q").value=q.text; };
    c.querySelector("#r-samples").appendChild(s);
@@ -419,10 +476,32 @@ function viewCreate(){
   };
   body.appendChild(c);
  };
- const painters={label:paintLabel,detail:paintDetail,reply:paintReply};
- tabs.querySelectorAll(".tab").forEach(b=>{
-  b.onclick=()=>{ tabs.querySelectorAll(".tab").forEach(x=>x.classList.remove("on")); b.classList.add("on"); painters[b.dataset.t](); };
- });
+ const paintInbox=()=>{
+  body.innerHTML="";
+  const c=h('<div class="card"><div class="sec-title" style="display:flex;align-items:center"><span class="grow">받은 문의함 — 유형은 자동 분류(S-19)</span><button class="btn sub" id="iq-new" style="padding:8px 14px">+ 문의 기록</button></div></div>');
+  const list=SEED.inquiries.concat(S.inqExtra||[]);
+  list.slice().reverse().forEach(q=>{
+   const tp = q.type || aiReply(q.text).type;
+   const r=h('<div class="list-row click"><div class="t"><b>'+esc(q.from)+'</b><span>'+esc(q.text)+'</span></div><span class="pill '+(tp==="통관·라벨"?"warn-tag":"ctr")+'">'+esc(tp)+'</span><button class="btn ai" style="padding:8px 12px">✦ 답장</button></div>');
+   r.querySelector("button").onclick=(e)=>{ e.stopPropagation(); S.pendInq=q.text; save(); switchTab("reply"); };
+   c.appendChild(r);
+  });
+  c.appendChild(h('<p class="hint" style="margin-top:8px">통관·라벨 유형은 AI가 답하지 않고 전문가에게 가요 · 바이어 연락처는 기록하지 않아요</p>'));
+  c.querySelector("#iq-new").onclick=()=>{
+   modal('<h3>받은 문의 기록</h3><p class="m-body">메일·메신저로 받은 문의를 붙여 넣어요 (연락처 제외)</p><div class="field"><label>어디서 (예: H마트 구매팀)</label><input id="iq-f"></div><div class="field"><label>문의 내용</label><textarea id="iq-t" rows="3"></textarea></div><div class="m-btns"><button class="btn sub" onclick="closeModal()">취소</button><button class="btn primary" id="iq-go">기록</button></div>');
+   $("#iq-go").onclick=()=>{
+    const f=$("#iq-f").value.trim()||"바이어", t=$("#iq-t").value.trim();
+    if(!t){toast("문의 내용을 넣어 주세요",true);return;}
+    if(!S.inqExtra) S.inqExtra=[];
+    S.inqExtra.push({id:Date.now(),from:f,text:t,type:aiReply(t).type,date:new Date().toISOString().slice(0,10)});
+    save(); closeModal(); toast("기록했어요 — 유형을 자동으로 나눴어요"); paintInbox();
+   };
+  };
+  body.appendChild(c);
+ };
+ const painters={label:paintLabel,detail:paintDetail,reply:paintReply,inbox:paintInbox};
+ const switchTab=(t)=>{ tabs.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x.dataset.t===t)); painters[t](); };
+ tabs.querySelectorAll(".tab").forEach(b=>{ b.onclick=()=>switchTab(b.dataset.t); });
  paintLabel();
  return v;
 }
@@ -435,11 +514,7 @@ function viewDraft(id){
  const p=product(d.productId);
  const v=h('<div></div>');
  v.appendChild(h('<div class="topbar"><div><h2 class="page">'+esc(draftName(d))+'</h2><p class="page-sub">'+pillOf(d.status)+(d.recheck?' <span class="pill warn-tag">규격서·규정이 바뀌어 다시 확인 필요</span>':"")+'</p></div></div>'));
- const steps=h('<div class="steps">'+
-  '<div class="step'+(d.status==="draft"?" on":"")+'"><span class="n">1</span>초안 (AI)</div>'+
-  '<div class="step'+(d.status==="check"?" on":"")+'"><span class="n">2</span>원문 대조 (담당자)</div>'+
-  '<div class="step'+(["review","ok","rej"].includes(d.status)?" on":"")+'"><span class="n">3</span>전문가 검수</div></div>');
- v.appendChild(steps);
+ v.appendChild(timeline(d));
  const row=h('<div class="row"></div>');
  const col1=h('<div class="card grow"><div class="sec-title">라벨 초안 <span class="pill ai-tag">AI · 근거 병기</span></div></div>');
  d.fields.forEach(f=>{
@@ -591,13 +666,56 @@ function viewReview(){
   const r=h('<div class="list-row"><img class="thumb" src="'+draftThumb(d)+'"><div class="t"><b>'+esc(draftName(d))+'</b><span>'+ago(d.history[d.history.length-1].at)+'</span></div>'+pillOf(d.status)+'</div>');
   if(d.status==="review" && (role==="expert"||role==="ceo")){
    const ap=h('<button class="btn vivid" style="padding:8px 14px">검수하기</button>');
-   ap.onclick=()=>openReview(d);
+   ap.onclick=()=>go("rvw/"+d.id);
    r.appendChild(ap);
   }
   inbox.appendChild(r);
  });
  v.appendChild(inbox);
  if(role!=="expert") v.appendChild(statsBlock());
+ return v;
+}
+/* ---------- 검수 전용 화면 (D-03) ---------- */
+function viewReviewDetail(id){
+ const d=draft(id); if(!d||d.kind!=="label") return viewReview();
+ const p=product(d.productId);
+ const v=h('<div></div>');
+ v.appendChild(h('<div class="topbar"><div><h2 class="page">검수 — '+esc(draftName(d))+'</h2><p class="page-sub">'+pillOf(d.status)+' · 점검표는 규제 요건(S-12)에서 자동 생성 · 걸린 시간은 계약 시간에서 차감돼요</p></div></div>'));
+ const row=h('<div class="row"></div>');
+ const left=h('<div class="card grow"><div class="sec-title">라벨 초안 — 담당자 원문 대조 완료</div></div>');
+ d.fields.forEach(f=>{
+  left.appendChild(h('<div class="lbl-field'+(f.v?"":" missing")+'"><div class="k"><b>'+esc(f.k)+'</b><span class="pill '+(f.tag==="근거"?"ai-tag":f.tag==="규격서 값"?"spec-tag":"warn-tag")+'">'+esc(f.tag)+'</span></div><div class="v">'+(f.v?esc(f.v):esc(f.missing||"비워 둠"))+'</div></div>'));
+ });
+ const regIds=[...new Set(d.fields.flatMap(f=>f.regs||[]))];
+ regIds.slice(0,3).forEach(rid=>{
+  const r=regById(rid);
+  if(r) left.appendChild(h('<div class="ev"><div class="bar"></div><div><b>'+esc(r.title)+'</b><p>“'+esc(r.body.slice(0,100))+'…”</p><div class="src">'+esc(r.src)+' · 지식베이스 #'+r.id+'</div></div></div>'));
+ });
+ const right=h('<div class="card" style="width:400px;flex-shrink:0"><div class="sec-title">검수 점검표</div></div>');
+ const emptyField=d.fields.some(f=>!f.v);
+ [[true,"필수 항목 "+d.fields.length+"개 구성 (S-12 기준)"],[true,"인용 조항이 최신 개정판"],[p.allergens.length>0,"알레르겐 Contains 문구 — "+(p.allergens.length?"명시됨":"해당 없음")],[true,"금지표현 없음"],[!emptyField, emptyField?"빈 칸 있음 — Best Before 확인 필요":"빈 칸 없음"]].forEach(c=>{
+  right.appendChild(h('<div class="chk'+(c[0]?"":" warn")+'"><div class="dot">'+(c[0]?"✓":"!")+'</div><span>'+esc(c[1])+'</span></div>'));
+ });
+ right.appendChild(h('<div class="field" style="margin-top:12px"><label>반려하려면 사유를 골라 주세요 (반려 시 필수)</label><select id="rv-r"><option value="">— 사유 선택 —</option><option>근거 불일치</option><option>표기 형식</option><option>금지표현</option><option>기타</option></select></div>'));
+ right.appendChild(h('<div class="field"><label>한 줄 설명</label><input id="rv-m" placeholder="지식베이스·금지목록에 그대로 쌓여요"></div>'));
+ const btns=h('<div style="display:flex;gap:10px"></div>');
+ const okB=h('<button class="btn vivid" style="flex:1">승인</button>');
+ okB.onclick=()=>{ statusTo(d,"ok"); S.expertUsed+=0.5; notify("전문가 승인 — "+draftName(d)+" · 발송만 남았어요","ok","preview/"+d.id); toast("승인했어요 — 대표님께 알림이 가요"); go("review"); };
+ const noB=h('<button class="btn danger-ghost" style="flex:1">반려</button>');
+ noB.onclick=()=>{
+  const r=v.querySelector("#rv-r").value;
+  if(!r){ toast("사유 없이 반려할 수 없어요", true); return; }
+  const memo=v.querySelector("#rv-m").value;
+  modal('<h3>정말 반려할까요?</h3><p class="m-body">적어 주신 사유가 담당자에게 그대로 전달되고, 지식베이스에 쌓여요</p><div class="notice danger"><b>'+esc(r)+'</b><p>'+esc(memo)+'</p></div><div class="m-btns"><button class="btn sub" onclick="closeModal()">아니요, 돌아가기</button><button class="btn danger-ghost" id="rv-go">반려하기</button></div>');
+  $("#rv-go").onclick=()=>{ d.rejReason=r; d.rejMemo=memo; statusTo(d,"rej"); S.expertUsed+=0.3; notify("반려 — "+draftName(d)+" · 사유: "+r,"rej","draft/"+d.id); closeModal(); toast("반려했어요 — 사유가 기록됐어요"); go("review"); };
+ };
+ btns.appendChild(okB); btns.appendChild(noB);
+ right.appendChild(btns);
+ const bk=h('<button class="btn ghost block" style="margin-top:10px">← 검수함으로</button>');
+ bk.onclick=()=>go("review");
+ right.appendChild(bk);
+ row.appendChild(left); row.appendChild(right);
+ v.appendChild(row);
  return v;
 }
 function openReview(d){
@@ -659,6 +777,7 @@ function viewSend(id){
  const d=draft(id); if(!d) return viewHome();
  const v=h('<div></div>');
  v.appendChild(h('<div class="topbar"><div><h2 class="page">발송하기 — '+esc(draftName(d))+'</h2><p class="page-sub">'+pillOf(d.status)+' · 메일은 대표님 메일함에서 보내요(시스템이 직접 발송하지 않음)</p></div></div>'));
+ if(d.kind!=="reply") v.appendChild(timeline(d));
  const row=h('<div class="row"></div>');
  const body = d.kind==="reply"? d.reply : d.fields.map(f=>f.k+": "+(f.v||"(비움)")).join("\n");
  const left=h('<div class="card grow"><div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><img src="assets/ic-plane.png" style="width:40px;height:40px;border-radius:12px"><div class="sec-title" style="margin:0">보낼 내용</div></div><pre style="background:var(--bg);border-radius:10px;padding:14px;white-space:pre-wrap;font-family:inherit">'+esc(body)+'</pre><div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" id="s-copy">본문 복사하기</button><button class="btn ghost" id="s-dl">텍스트로 내려받기</button></div><p class="hint" style="margin-top:10px">대표님 메일에서 보낸 뒤, 오른쪽 "보냈어요"를 눌러 주세요</p></div>');
@@ -732,6 +851,18 @@ function viewDict(){
  });
  v.appendChild(c);
  v.appendChild(h('<div class="row"><div class="card grow"><div class="sec-title">금지표현 ('+SEED.forbidden.length+')</div><p class="hint">'+SEED.forbidden.map(esc).join(" · ")+'</p><p class="danger-note" style="margin-top:8px">효능·치료 표현 — 생성 단계에서 자동 차단돼요</p></div><div class="card grow"><div class="sec-title">공장 저장값 (패킹·거래 조건)</div><p>'+esc(SEED.factory.carton)+'<br>20ft: '+esc(SEED.factory.container20)+' · MOQ '+esc(SEED.factory.moq)+'<br>'+esc(SEED.factory.lead)+' · '+esc(SEED.factory.incoterm)+'</p><p class="danger-note" style="margin-top:8px">'+esc(SEED.factory.note)+'</p></div></div>'));
+ // 문안틀 6종
+ const tpl=h('<div class="card" style="margin-top:18px"><div class="sec-title">문안틀 6종 — 남는 자산 (v1)</div><div class="tiles" style="grid-template-columns:repeat(3,1fr);margin:0"></div></div>');
+ const tplWrap=tpl.querySelector(".tiles");
+ [["제품소개(1장)","한 줄 소개→스펙→인증→스토리 · 효능·최상급 금지"],["상세페이지(B2B)","블록 6종 고정 · 숫자는 규격서·공장 값만"],["바이어 제안서","문제→제품→실적→조건 · 실적 숫자 고정 문구"],["이메일","3문단 이내 · 끝은 다음 행동 제안 하나"],["Q&A","결론 먼저→근거 · 통관 유형은 생성 차단"],["라벨 표기","S-12 필수 항목 순서 · 전문가 검수 필수"]].forEach(t=>{
+  tplWrap.appendChild(h('<div class="tile" style="align-items:flex-start;text-align:left;cursor:default"><b style="font-size:13px">'+t[0]+'</b><span class="hint" style="font-weight:400">'+t[1]+'</span></div>'));
+ });
+ v.appendChild(tpl);
+ // 계정 관리 (대표만)
+ if(S.user.role==="ceo"){
+  const acc=h('<div class="card" style="margin-top:18px"><div class="sec-title">계정 관리 — 대표만 보여요</div><table class="tbl"><tr><th>아이디</th><th>이름·역할</th><th>들어가면 보는 화면</th></tr>'+SEED.accounts.map(a=>'<tr><td>'+a.id+'</td><td>'+esc(a.name)+' · '+esc(a.label)+'</td><td>'+(a.role==="expert"?"검수함만":a.role==="mentor"?"성과만(읽기 전용)":"전체")+'</td></tr>').join("")+'</table><p class="hint" style="margin-top:8px">실서비스에선 여기서 계정 발급·비밀번호 재설정·중지를 해요 (데모는 고정 계정)</p></div>');
+  v.appendChild(acc);
+ }
  const rs=h('<div class="card" style="margin-top:18px"><div class="sec-title">데모 초기화</div><p class="hint" style="margin-bottom:10px">이 브라우저에 저장된 데모 데이터를 처음 상태로 되돌려요</p><button class="btn danger-ghost" id="d-reset">처음부터 다시 하기</button></div>');
  rs.querySelector("#d-reset").onclick=()=>{
   modal('<h3>처음부터 다시 할까요?</h3><p class="m-body">이 브라우저의 데모 데이터(자료·사전·알림)가 모두 지워지고 처음 상태로 돌아가요. 되돌릴 수 없어요.</p><div class="m-btns"><button class="btn sub" onclick="closeModal()">취소</button><button class="btn danger-ghost" id="d-rgo">초기화</button></div>');
