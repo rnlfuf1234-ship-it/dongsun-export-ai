@@ -270,6 +270,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
  .stats .div{display:none}
  .stats .cell{padding:6px 0}
 }
+.gauge{height:10px;border-radius:5px;background:var(--bg-sub);overflow:hidden}
+.gauge i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--brand),var(--vivid));transition:width .4s}
+.gauge.blue i{background:linear-gradient(90deg,var(--ai),#7D9BF0)}
 /* 인쇄: 라벨만 */
 @media print{
  body *{visibility:hidden}
