@@ -43,10 +43,12 @@ templates: ["제품소개(1장)","상세페이지(B2B)","바이어 제안서","�
 products: [
  { id:1, name:"쌀 튀김누룽지 스낵", en:"Rice Nurungji Snack", type:"과자",
    ing:[{ko:"쌀",pct:60},{ko:"현미유",pct:20},{ko:"미강(쌀 부산물)",pct:12},{ko:"설탕",pct:5},{ko:"소금",pct:3}],
-   allergens:["밀","새우"], weight:60, keep:"직사광선을 피해 실온 보관", life:12 },
+   allergens:["밀","새우"], weight:60, keep:"Keep in a cool, dry place", life:12,
+   nf:{cal:280,rows:[["Total Fat 11g","14%"],["Sodium 190mg","8%"],["Total Carbohydrate 42g","15%"],["Protein 4g",""]]} },
  { id:2, name:"쌀꽃새우튀김", en:"Rice Flower Shrimp Fritter", type:"냉동 HMR",
    ing:[{ko:"쌀",pct:45},{ko:"새우",pct:30},{ko:"밀",pct:15},{ko:"현미유",pct:7},{ko:"소금",pct:3}],
-   allergens:["새우","밀"], weight:300, keep:"-18°C 이하 냉동 보관", life:18 }
+   allergens:["새우","밀"], weight:300, keep:"Keep frozen at -18°C or below", life:18,
+   nf:{cal:320,rows:[["Total Fat 14g","18%"],["Sodium 310mg","13%"],["Total Carbohydrate 38g","14%"],["Protein 9g",""]]} }
 ],
 
 factory: { carton:"20개입 · 350×250×300mm · 1.4kg", container20:"1,850카톤", moq:"500카톤", lead:"발주 확정 후 3주", incoterm:"FOB Busan",
@@ -80,6 +82,26 @@ function aiLabelDraft(product, ctr){
  ];
  if(ctr==="VN"){ fields.push({ k:"보조라벨(베트남어)", v:"수입자 부착 — 당사는 영문 원라벨과 성분·알레르겐 정보만 제공", tag:"근거", regs:[10], from:"ai" }); }
  return fields;
+}
+
+/* "AI" 영문 상세페이지 생성 — 블록 6종(문안틀 ②), AI 작문은 2블록만 */
+function aiDetailPage(product){
+ const f=SEED.factory;
+ const oz=(product.weight*0.03527).toFixed(1);
+ return [
+  { k:"Overview", tag:"AI 작문", from:"ai",
+    v:"Upcycled rice snack from Jinan, Korea — crispy "+product.en.toLowerCase()+" made on a 90% automated HACCP-certified line." },
+  { k:"Spec", tag:"규격서 값", from:"spec",
+    v:product.en+" · Net Wt "+oz+" oz ("+product.weight+" g) · Shelf life "+product.life+" months · "+product.keep },
+  { k:"Packing & Container", tag:"공장 값", from:"fact", note:f.note,
+    v:"Carton "+f.carton+" · 20ft container "+f.container20 },
+  { k:"Certifications", tag:"고정", from:"fix",
+    v:"HACCP certified · Snack manufacturing patent · 8-country export record incl. H Mart (USA)" },
+  { k:"MOQ & Lead time", tag:"고정", from:"fix",
+    v:"MOQ "+f.moq+" · "+f.lead+" · "+f.incoterm },
+  { k:"Our Story", tag:"AI 작문", from:"ai",
+    v:"We turn rice by-products into snacks people love — less waste, same authentic taste of Korean nurungji." }
+ ];
 }
 
 /* "AI" 답장 생성 — 유형 분류 + 금지표현 차단 */
