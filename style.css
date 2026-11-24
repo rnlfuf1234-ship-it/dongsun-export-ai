@@ -208,3 +208,43 @@ table.tbl{width:100%;border-collapse:collapse;border:1px solid var(--border);bor
 }
 @media(min-width:861px){.mob-head{display:none}}
 .hide{display:none!important}
+
+/* ---------- v2 보강 ---------- */
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--vivid);color:var(--brand-dark);font-size:11px;font-weight:700;font-style:normal;margin-left:4px}
+.badge.abs{position:absolute;top:-4px;right:-4px}
+.dot-s{width:9px;height:9px;border-radius:999px;flex-shrink:0;display:inline-block}
+.dot-s.ok{background:var(--vivid)}
+.dot-s.wait{background:var(--gold)}
+.dt-hero{border-radius:14px;overflow:hidden;background:url(assets/hero-snack.png) center/cover;min-height:130px;position:relative;margin-bottom:10px}
+.dt-hero .in{position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,26,15,.1),rgba(8,26,15,.86));padding:16px;display:flex;flex-direction:column;justify-content:flex-end;color:var(--inv)}
+.dt-hero b{font-size:18px}
+.dt-hero p{font-size:12px;opacity:.85;margin-top:3px}
+/* 라벨 실물 */
+.label-real{width:400px;flex-shrink:0;background:#fff;border:1.5px solid var(--text);box-shadow:var(--shadow);padding:22px;color:var(--text)}
+.label-real .brand{font-size:12px;letter-spacing:.14em;color:var(--text-sub)}
+.label-real .pname{font-size:24px;font-weight:700;line-height:1.3;margin:2px 0 4px}
+.label-real .netwt{font-size:13px;font-weight:500;border-bottom:1px solid var(--text);padding-bottom:8px;margin-bottom:10px}
+.label-real .nf{border:2px solid var(--text);padding:8px 10px;margin-bottom:10px}
+.label-real .nf-t{font-size:19px;font-weight:800}
+.label-real .nf-sub{font-size:11px}
+.label-real .nf-bar{height:5px;background:var(--text);margin:4px 0}
+.label-real .nf-bar.thin{height:2px}
+.label-real .nf-cal{display:flex;justify-content:space-between;align-items:center;font-weight:700}
+.label-real .nf-cal b{font-size:22px}
+.label-real .nf-row{display:flex;justify-content:space-between;font-size:11.5px;border-top:1px solid var(--border);padding:2px 0}
+.label-real .ln{font-size:11.5px;margin-top:6px;line-height:1.5}
+.label-real .ln.strong{font-weight:700}
+.label-real .ln.dim{color:var(--text-sub)}
+.label-real .ln.miss{color:var(--danger)}
+/* 막대 차트 */
+.bars{display:flex;gap:36px;align-items:flex-end;padding:6px 4px 0}
+.bar-g{display:flex;flex-direction:column;align-items:center;gap:6px}
+.bar-g i{display:block;width:52px;border-radius:8px;background:var(--brand-light)}
+.bar-g .bl{font-size:12px;color:var(--text-sub)}
+.bar-g .bm{font-size:12px;color:var(--text-sub)}
+/* 인쇄: 라벨만 */
+@media print{
+ body *{visibility:hidden}
+ .label-real,.label-real *{visibility:visible}
+ .label-real{position:absolute;left:0;top:0;box-shadow:none}
+}
