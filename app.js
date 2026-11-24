@@ -188,14 +188,22 @@ function viewHome(){
  const today=new Date();
  v.appendChild(h('<div class="topbar"><div><h2 class="page">안녕하세요, '+esc(S.user.name)+' 님 👋</h2><p class="page-sub">'+(today.getMonth()+1)+'월 '+today.getDate()+'일 · 수출 자료 '+perfCalc().inProg+'건이 움직이고 있어요</p></div><div class="sp"></div></div>'));
  const d=nextTask();
+ const todoCnt=S.drafts.filter(x=> x.recheck || ["check","ok","rej","draft"].includes(x.status)).length;
  if(d){
   const msg = d.recheck ? "규격서·규정이 바뀌어 다시 확인이 필요해요" : d.status==="check" ? "원문 대조를 기다리고 있어요" : d.status==="ok" ? "승인됐어요 — "+(d.kind==="label"?"미리보기 확인 후 발송만 남았어요":"발송만 남았어요") : d.status==="rej" ? "반려됐어요 — 사유를 보고 다시 만들어요" : "AI 초안을 확인해 주세요";
-  const hero=h('<div class="hero"><div class="bg"></div><div class="ov"></div><div class="inner"><span class="chip">오늘 할 일 · 1건</span><h3>'+esc(draftName(d))+'이<br>'+msg+'</h3><p class="meta">'+pillOf(d.status)+' · '+ago(d.history[d.history.length-1].at)+'</p><div class="btns"><button class="btn ghostw" onclick="toast(\'다음에 다시 보여 드릴게요\')">나중에 볼게요</button><button class="btn vivid" id="hero-go">지금 확인하기</button></div></div></div>');
+  const hero=h('<div class="hero"><div class="bg"></div><div class="ov"></div><div class="inner"><span class="chip">오늘 할 일 · '+todoCnt+'건</span><h3>'+esc(draftName(d))+'이<br>'+msg+'</h3><p class="meta">'+pillOf(d.status)+' · '+ago(d.history[d.history.length-1].at)+'</p><div class="btns"><button class="btn ghostw" onclick="toast(\'다음에 다시 보여 드릴게요\')">나중에 볼게요</button><button class="btn vivid" id="hero-go">지금 확인하기</button></div></div></div>');
   hero.querySelector("#hero-go").onclick=()=>openDraft(d);
   v.appendChild(hero);
  } else {
-  const hero=h('<div class="hero empty"><div class="bg"></div><div class="ov"></div><div class="inner"><h3>진행 중인 자료가 없어요</h3><p class="meta">제품을 고르면 AI가 라벨 초안부터 만들어 드려요</p><div class="btns"><button class="btn vivid" onclick="go(\'create\')">라벨 초안 만들기</button></div></div></div>');
+  const hero=h('<div class="hero empty"><div class="bg"></div><div class="ov"></div><div class="inner"><h3>'+(S.drafts.length===0?"반가워요! 첫 제품부터 시작해요":"진행 중인 자료가 없어요")+'</h3><p class="meta">제품을 고르면 AI가 라벨 초안부터 만들어 드려요 — 10분이면 충분해요</p><div class="btns"><button class="btn vivid" onclick="go(\'create\')">라벨 초안 만들기</button></div></div></div>');
   v.appendChild(hero);
+  if(S.drafts.length===0){
+   const steps=h('<div class="tiles" style="grid-template-columns:repeat(3,1fr)"></div>');
+   [["ic-box","1. 제품 규격서 입력","품목명·성분·중량 — 사전에서 고르기만"],["ic-doc","2. AI 라벨 초안","규정 근거와 함께 10초 만에"],["ic-check","3. 확인 → 전문가 검수","원문 대조 후 승인되면 발송"]].forEach(g=>{
+    steps.appendChild(h('<div class="tile" style="cursor:default;align-items:flex-start;text-align:left"><img class="chip3d" src="assets/'+g[0]+'.png"><b style="font-size:14px">'+g[1]+'</b><span class="hint" style="font-weight:400">'+g[2]+'</span></div>'));
+   });
+   v.appendChild(steps);
+  }
  }
  const tiles=h('<div class="tiles"></div>');
  [["products","제품 정보","ic-box"],["kb","지식베이스","ic-book"],["create","자료 만들기","ic-doc"],["review","검수·성과","ic-check"]].forEach(t=>{
@@ -603,7 +611,15 @@ function viewPreview(id){
  const d=draft(id); if(!d||d.kind!=="label") return viewHome();
  const p=product(d.productId);
  const fv=k=>{ const f=d.fields.find(x=>x.k===k); return f? f.v : ""; };
- const checks=[
+ const checks = d.ctr==="VN" ? [
+  ["제품명 — 영문 원라벨", !!fv("Product Name")],
+  ["내용량 g (미터법)", !!fv("Net Wt")],
+  ["성분 표기", !!fv("Ingredients")],
+  ["알레르겐 정보 제공 (수입자 번역용)", !!fv("Allergens")],
+  ["날짜 일/월/년 순서 — 전문가 확인", !!fv("Best Before")],
+  ["원산지", !!fv("Origin")],
+  ["보조라벨(베트남어) — 수입자 부착 안내", !!fv("보조라벨(베트남어)")]
+ ] : [
   ["제품명 (§101.3)", !!fv("Product Name")],
   ["내용량 oz+g (§101.105)", !!fv("Net Wt")],
   ["성분 내림차순 (§101.4)", !!fv("Ingredients")],
@@ -626,8 +642,9 @@ function viewPreview(id){
   '</div>'+
   '<div class="ln"><b>INGREDIENTS:</b> '+esc(fv("Ingredients"))+'</div>'+
   '<div class="ln strong">'+esc(fv("Allergens")).toUpperCase()+'</div>'+
-  (fv("Best Before")?'<div class="ln">BEST BEFORE: '+esc(fv("Best Before"))+'</div>':'<div class="ln miss">BEST BEFORE: (확정 전)</div>')+
+  (fv("Best Before")?'<div class="ln">BEST BEFORE: '+esc(fv("Best Before"))+(d.ctr==="VN"?' <span class="miss">(일/월/년 순 — 주의)</span>':"")+'</div>':'<div class="ln miss">BEST BEFORE: (확정 전'+(d.ctr==="VN"?" · 일/월/년 순":"")+')</div>')+
   '<div class="ln">'+esc(fv("Origin")).toUpperCase()+'</div>'+
+  (d.ctr==="VN"?'<div class="ln dim">Nhãn phụ tiếng Việt: 수입자가 부착 (시행령 43/2017)</div>':"")+
   '<div class="ln dim">Manufactured by Dongsun Food Co., Ltd., Jinan-gun, Jeonbuk, Korea · Distributed by: (수입자 기입란)</div>'+
  '</div>');
  row.appendChild(label);
@@ -747,6 +764,14 @@ function statsBlock(){
  const pf=perfCalc();
  const el=h('<div></div>');
  el.appendChild(h('<div class="stats"><div class="cell"><b>'+pf.minutes+'분</b><span>처리 시간 자동 실측</span></div><div class="div"></div><div class="cell"><b>'+(pf.labelAvg||"—")+(pf.labelAvg?"분":"")+'</b><span>라벨 1건 평균 (도입 전 360분)</span></div><div class="div"></div><div class="cell"><b>'+pf.rejRate+'%</b><span>반려율 (목표 10% 미만)</span></div><div class="div"></div><div class="cell"><b>'+S.perf.contracts+'만원</b><span>분기 계약(예시)</span></div></div>'));
+ const sentAll=S.drafts.filter(x=>x.status==="sent"), replied=sentAll.filter(x=>x.replied).length;
+ const pct=Math.min(100,Math.round(S.perf.contracts/S.perf.goal*100));
+ const gauge=h('<div class="card" style="margin-bottom:20px"><div class="sec-title">분기 목표</div>'+
+  '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-sub);margin-bottom:6px"><span>계약액 '+S.perf.contracts+'만원</span><span>목표 950만원 · '+pct+'%</span></div>'+
+  '<div class="gauge"><i style="width:'+pct+'%"></i></div>'+
+  '<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-sub);margin-top:14px;margin-bottom:6px"><span>발송 '+sentAll.length+'건 중 회신 '+replied+'건</span><span>회신 전환 '+(sentAll.length?Math.round(replied/sentAll.length*100):0)+'%</span></div>'+
+  '<div class="gauge blue"><i style="width:'+(sentAll.length?Math.round(replied/sentAll.length*100):0)+'%"></i></div></div>');
+ el.appendChild(gauge);
  const chart=h('<div class="card" style="margin-bottom:20px"><div class="sec-title">월별 현지화 시간 (9·10월은 예시 · 11월은 이 데모의 실측)</div><div class="bars"></div></div>');
  const barWrap=chart.querySelector(".bars");
  const nowH=Math.max(0.5, pf.minutes/60);
@@ -780,7 +805,15 @@ function viewSend(id){
  if(d.kind!=="reply") v.appendChild(timeline(d));
  const row=h('<div class="row"></div>');
  const body = d.kind==="reply"? d.reply : d.fields.map(f=>f.k+": "+(f.v||"(비움)")).join("\n");
- const left=h('<div class="card grow"><div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><img src="assets/ic-plane.png" style="width:40px;height:40px;border-radius:12px"><div class="sec-title" style="margin:0">보낼 내용</div></div><pre style="background:var(--bg);border-radius:10px;padding:14px;white-space:pre-wrap;font-family:inherit">'+esc(body)+'</pre><div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" id="s-copy">본문 복사하기</button><button class="btn ghost" id="s-dl">텍스트로 내려받기</button></div><p class="hint" style="margin-top:10px">대표님 메일에서 보낸 뒤, 오른쪽 "보냈어요"를 눌러 주세요</p></div>');
+ const p0=product(d.productId);
+ const subject = d.kind==="reply" ? "[Dongsun Food] RE: your inquiry" : "[Dongsun Food] "+(p0?p0.en:"")+(d.kind==="label"?" — label specification":" — product detail sheet");
+ const atts = d.kind==="reply" ? (d.from==="인증·서류"?["HACCP 인증서.pdf","제품 규격서_EN.pdf"]:[]) : ["상세페이지_EN.pdf","HACCP 인증서.pdf"];
+ const left=h('<div class="card grow"><div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><img src="assets/ic-plane.png" style="width:40px;height:40px;border-radius:12px"><div class="sec-title" style="margin:0">보낼 내용</div></div>'+
+  '<div class="lbl-field" style="margin-bottom:10px"><div class="k"><b>메일 제목 제안</b><button class="btn-link" id="s-subj">복사</button></div><div class="v">'+esc(subject)+'</div></div>'+
+  '<pre style="background:var(--bg);border-radius:10px;padding:14px;white-space:pre-wrap;font-family:inherit">'+esc(body)+'</pre>'+
+  (atts.length?'<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+atts.map(a=>'<span class="pill ctr">📄 '+esc(a)+'</span>').join("")+'<span class="hint" style="align-self:center">— 함께 보낼 파일(데모)</span></div>':"")+
+  '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn primary" id="s-copy">본문 복사하기</button><button class="btn ghost" id="s-dl">텍스트로 내려받기</button></div><p class="hint" style="margin-top:10px">대표님 메일에서 보낸 뒤, 오른쪽 "보냈어요"를 눌러 주세요</p></div>');
+ left.querySelector("#s-subj").onclick=()=>{ navigator.clipboard&&navigator.clipboard.writeText(subject); toast("제목이 복사됐어요"); };
  left.querySelector("#s-copy").onclick=()=>{ navigator.clipboard&&navigator.clipboard.writeText(body); toast("본문이 복사됐어요"); };
  left.querySelector("#s-dl").onclick=()=>{ const a=document.createElement("a"); a.href="data:text/plain;charset=utf-8,"+encodeURIComponent(body); a.download="발송본문.txt"; a.click(); };
  const right=h('<div class="card" style="width:380px;flex-shrink:0"><div class="sec-title">발송 확정</div></div>');
@@ -863,6 +896,23 @@ function viewDict(){
   const acc=h('<div class="card" style="margin-top:18px"><div class="sec-title">계정 관리 — 대표만 보여요</div><table class="tbl"><tr><th>아이디</th><th>이름·역할</th><th>들어가면 보는 화면</th></tr>'+SEED.accounts.map(a=>'<tr><td>'+a.id+'</td><td>'+esc(a.name)+' · '+esc(a.label)+'</td><td>'+(a.role==="expert"?"검수함만":a.role==="mentor"?"성과만(읽기 전용)":"전체")+'</td></tr>').join("")+'</table><p class="hint" style="margin-top:8px">실서비스에선 여기서 계정 발급·비밀번호 재설정·중지를 해요 (데모는 고정 계정)</p></div>');
   v.appendChild(acc);
  }
+ // 데이터 백업·복원
+ const bk=h('<div class="card" style="margin-top:18px"><div class="sec-title">데이터 백업 · 복원</div><p class="hint" style="margin-bottom:10px">데이터는 이 브라우저에만 저장돼요. 다른 PC로 옮기려면 백업 파일을 쓰세요</p><div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn primary" id="bk-out">백업 내려받기 (JSON)</button><button class="btn ghost" id="bk-in">백업 불러오기</button></div></div>');
+ bk.querySelector("#bk-out").onclick=()=>{
+  const a=document.createElement("a"); a.href="data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(S)); a.download="동선수출AI_백업_"+new Date().toISOString().slice(0,10)+".json"; a.click();
+  toast("백업을 내려받았어요");
+ };
+ bk.querySelector("#bk-in").onclick=()=>{
+  modal('<h3>백업 불러오기</h3><p class="m-body">백업 파일(JSON)을 메모장으로 열어 내용을 붙여 넣어 주세요. 지금 데이터는 덮어써져요.</p><div class="field"><textarea id="bk-t" rows="5" placeholder=\'{"v":2,...}\'></textarea></div><div class="m-btns"><button class="btn sub" onclick="closeModal()">취소</button><button class="btn primary" id="bk-go">불러오기</button></div>');
+  $("#bk-go").onclick=()=>{
+   try{
+    const data=JSON.parse($("#bk-t").value);
+    if(!data.v||!Array.isArray(data.drafts)) throw 0;
+    const u=S.user; S=data; S.user=u; save(); closeModal(); toast("불러왔어요"); go("home");
+   }catch(e){ toast("백업 내용이 올바르지 않아요", true); }
+  };
+ };
+ v.appendChild(bk);
  const rs=h('<div class="card" style="margin-top:18px"><div class="sec-title">데모 초기화</div><p class="hint" style="margin-bottom:10px">이 브라우저에 저장된 데모 데이터를 처음 상태로 되돌려요</p><button class="btn danger-ghost" id="d-reset">처음부터 다시 하기</button></div>');
  rs.querySelector("#d-reset").onclick=()=>{
   modal('<h3>처음부터 다시 할까요?</h3><p class="m-body">이 브라우저의 데모 데이터(자료·사전·알림)가 모두 지워지고 처음 상태로 돌아가요. 되돌릴 수 없어요.</p><div class="m-btns"><button class="btn sub" onclick="closeModal()">취소</button><button class="btn danger-ghost" id="d-rgo">초기화</button></div>');
@@ -894,4 +944,5 @@ function viewAlerts(){
 
 /* ---------- 시작 ---------- */
 window.go=go; window.toast=toast; window.closeModal=closeModal;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeModal(); });
 render();
